@@ -9,7 +9,7 @@ WHITE = [255,255,255]
 BLACK = [10,10,10]
 
 # Constants
-G = Vector2(0,-4)
+G = Vector2(0,4)
 START_SIM = False
 NODE_NUM = 0
 BEAM_NUM = 0
@@ -37,35 +37,33 @@ class node(pygame.sprite.Sprite):
 
 	def run_sim(self,dt):
 		global G
+		if not self.fixed:
+			# Use Euler's Method for now
+			self.force_total = Vector2(G*self.mass)
+			# self.vel = Vector2(0,0)
+			for b in self.vec_list:
+				# print("Node #: ",self.node_num)
+				# print("Beam #: ", b.beam_num)
+				n_i = b.nodes.index(self)
+				if not n_i:
+					reaction = -Vector2(b.dir_vec.normalize())
+				else:
+					reaction = Vector2(b.dir_vec.normalize())
+				magnitude = (b.L0 - b.length)*b.k
+				self.force_total += magnitude*reaction
 
-		# Use Euler's Method for now
-		self.force_total = Vector2(G*self.mass)
-		for b in self.vec_list:
-			print("Node #: ",self.node_num)
-			print("Beam #: ", b.beam_num)
-			n_i = b.nodes.index(self)
-			if not n_i:
-				reaction = -Vector2(b.dir_vec.normalize())
-			else:
-				reaction = Vector2(b.dir_vec.normalize())
-			magnitude = (b.L0 - b.length)*b.k
-			self.force_total += magnitude*reaction
-
-		self.vel += (self.force_total/self.mass)*dt
-		self.pos += self.vel*dt
+			self.vel += (self.force_total/self.mass)*dt
+			self.pos += self.vel*dt
 
 	def move(self,mouse_pos):
-		self.image.fill(WHITE)
 		pygame.draw.circle(self.image, BLACK, (10,10), 10)
-		if not START_SIM:
-			self.pos = mouse_pos
+		self.pos = mouse_pos
 		self.rect.center = self.pos
 
 	def update(self):
 		self.canvas.blit(self.image, self.rect)
 
 	def add_beam_ref(self, beam):
-		
 		self.vec_list.append(beam)
 
 
@@ -91,25 +89,33 @@ class beam(pygame.sprite.Sprite):
 		self.nodes = [a_node, b_node]
 
 		# Spring constant
-		self.k = 5
+		self.k = 0.5
 		self.L0 = Vector2.length(self.dir_vec)
 
 	def move(self, mouse_pos):
+		global START_SIM
+		
 		self.nodes[1].move(mouse_pos)
 		self.vec0.xy = self.nodes[0].pos 
 		self.vec1.xy = self.nodes[1].pos
-		self.dir_vec = self.vec1 - self.vec0
-		self.image = pygame.transform.scale(self.image, (abs(self.vec0.x-self.vec1.x)+5,abs(self.vec0.y-self.vec1.y)+5))
-		self.rect = self.image.get_rect(center=((self.vec0.x+self.vec1.x)/2, (self.vec1.y+self.vec0.y)/2))
+		
 		self.dir_vec = self.vec1 - self.vec0
 		self.length = self.dir_vec.magnitude()
 
+		self.image = pygame.transform.scale(self.image, (abs(self.vec0.x-self.vec1.x)+5,abs(self.vec0.y-self.vec1.y)+5))
+		self.rect = self.image.get_rect(center=((self.vec0.x+self.vec1.x)/2, (self.vec1.y+self.vec0.y)/2))
+		
+		if not START_SIM:
+			self.L0 = Vector2.length(self.dir_vec)
+
 	def update(self):
+		self.nodes[0].update()
 		self.nodes[1].update()
 		x0, y0 = self.nodes[0].rect.center 
 		x1, y1 = self.nodes[1].rect.center
 		self.image = pygame.transform.scale(self.image, (abs(x0-x1)+5,abs(y0-y1)+5))
 		self.rect = self.image.get_rect(center=((x0+x1)/2, (y1+y0)/2))
+		self.dir_vec = self.vec1 - self.vec0
 		self.image.fill(WHITE)
 		self.image.set_colorkey(WHITE)
 		line_rect = pygame.draw.line(self.image, BLACK, (x0-self.rect.x , y0-self.rect.y), (x1-self.rect.x, y1-self.rect.y), 5)
@@ -255,14 +261,16 @@ def main():
 		# if(new_beam is not None):
 		# 	new_beam.update()
 
-		
-
 		if START_SIM:
 			for n in node_list:
-				print(dt)
+				# print(dt)
 				n.run_sim(dt)
 				n.move(n.pos)
+			for b in beam_list:
+				b.move(b.nodes[1].pos)
 
+		
+		node_list.update()
 		beam_list.update()
 
 		beam_list.draw(screen)
@@ -270,7 +278,7 @@ def main():
 
 		# refresh the screen
 		pygame.display.update()
-		dt = clock.tick(120)/1000
+		dt = clock.tick(240)/1000
 
 if __name__ == '__main__':
     pygame.init()
