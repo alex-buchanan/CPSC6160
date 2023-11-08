@@ -9,7 +9,7 @@ WHITE = [255,255,255]
 BLACK = [10,10,10]
 
 # Constants
-G = Vector2(0,4)
+G = Vector2(0,1)
 START_SIM = False
 NODE_NUM = 0
 BEAM_NUM = 0
@@ -32,7 +32,7 @@ class node(pygame.sprite.Sprite):
 		self.rect = self.image.get_rect(center=self.pos)
 		pygame.draw.circle(self.image, BLACK, (10,10), 10)
 		self.force_total = Vector2(0,0)
-		self.mass = 2
+		self.mass = 20
 		self.vec_list = []
 
 	def run_sim(self,dt):
@@ -50,7 +50,7 @@ class node(pygame.sprite.Sprite):
 				else:
 					reaction = Vector2(b.dir_vec.normalize())
 				magnitude = (b.L0 - b.length)*b.k
-				self.force_total += magnitude*reaction
+				self.force_total += magnitude*reaction - self.vel*b.c
 
 			self.vel += (self.force_total/self.mass)*dt
 			self.pos += self.vel*dt
@@ -71,25 +71,31 @@ class node(pygame.sprite.Sprite):
 class beam(pygame.sprite.Sprite):
 	def __init__(self, a_node, b_node, group, canvas):
 		super().__init__(group)
+		
 		global BEAM_NUM
 		self.beam_num = BEAM_NUM
 		BEAM_NUM += 1
+		
 		self.vec0 = Vector2()
 		self.vec1 = Vector2()
 		self.vec0.xy = a_node.pos
 		self.vec1.xy = b_node.pos
+		
 		self.dir_vec = self.vec1 - self.vec0
 		self.L0 = self.dir_vec.magnitude()
 		self.length = self.L0
+		
 		self.canvas = canvas
 		self.image = pygame.Surface((abs(self.vec0.x-self.vec1.x),abs(self.vec0.y-self.vec1.y)), pygame.SRCALPHA)
 		self.rect = self.image.get_rect(center=(self.vec0+self.vec1)/2)
+		
 		a_node.add_beam_ref(self)
 		b_node.add_beam_ref(self)
 		self.nodes = [a_node, b_node]
 
 		# Spring constant
-		self.k = 0.5
+		self.k = 4
+		self.c = .5
 		self.L0 = Vector2.length(self.dir_vec)
 
 	def move(self, mouse_pos):
@@ -262,12 +268,13 @@ def main():
 		# 	new_beam.update()
 
 		if START_SIM:
-			for n in node_list:
-				# print(dt)
-				n.run_sim(dt)
-				n.move(n.pos)
-			for b in beam_list:
-				b.move(b.nodes[1].pos)
+			for i in range(200):
+				for n in node_list:
+					# print(dt)
+					n.run_sim(dt)
+					n.move(n.pos)
+				for b in beam_list:
+					b.move(b.nodes[1].pos)
 
 		
 		node_list.update()
@@ -278,7 +285,7 @@ def main():
 
 		# refresh the screen
 		pygame.display.update()
-		dt = clock.tick(240)/1000
+		dt = clock.tick(60)/1000
 
 if __name__ == '__main__':
     pygame.init()
