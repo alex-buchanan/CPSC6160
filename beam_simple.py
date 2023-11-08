@@ -11,10 +11,18 @@ BLACK = [10,10,10]
 # Constants
 G = Vector2(0,-4)
 START_SIM = False
+NODE_NUM = 0
+BEAM_NUM = 0
 
 class node(pygame.sprite.Sprite):
-	def __init__(self, x, y, canvas, fixed=False):
-		super().__init__()
+	def __init__(self, x, y, canvas, group=None, fixed=False):
+		global NODE_NUM
+		self.node_num = NODE_NUM
+		NODE_NUM += 1
+		if group is not None:
+			super().__init__(group)
+		else:
+			super().__init__()
 		# kinematic variables
 		self.pos = Vector2(x,y)
 		self.vel = Vector2(0,0)
@@ -25,42 +33,61 @@ class node(pygame.sprite.Sprite):
 		pygame.draw.circle(self.image, BLACK, (10,10), 10)
 		self.force_total = Vector2(0,0)
 		self.mass = 2
-
-	def add_forces(self, force_vec):
-		self.force_total += force_vec
+		self.vec_list = []
 
 	def run_sim(self,dt):
+		global G
+
 		# Use Euler's Method for now
+		self.force_total = Vector2(G*self.mass)
+		for b in self.vec_list:
+			print("Node #: ",self.node_num)
+			print("Beam #: ", b.beam_num)
+			n_i = b.nodes.index(self)
+			if not n_i:
+				reaction = -Vector2(b.dir_vec.normalize())
+			else:
+				reaction = Vector2(b.dir_vec.normalize())
+			magnitude = (b.L0 - b.length)*b.k
+			self.force_total += magnitude*reaction
+
 		self.vel += (self.force_total/self.mass)*dt
 		self.pos += self.vel*dt
 
 	def move(self,mouse_pos):
 		self.image.fill(WHITE)
 		pygame.draw.circle(self.image, BLACK, (10,10), 10)
-		self.pos = mouse_pos
+		if not START_SIM:
+			self.pos = mouse_pos
 		self.rect.center = self.pos
 
 	def update(self):
 		self.canvas.blit(self.image, self.rect)
 
-	#def simulate(self,b_list):
+	def add_beam_ref(self, beam):
+		
+		self.vec_list.append(beam)
 
 
 
 class beam(pygame.sprite.Sprite):
-	def __init__(self, a_node, b_node, canvas):
-		super().__init__()
-
+	def __init__(self, a_node, b_node, group, canvas):
+		super().__init__(group)
+		global BEAM_NUM
+		self.beam_num = BEAM_NUM
+		BEAM_NUM += 1
 		self.vec0 = Vector2()
 		self.vec1 = Vector2()
 		self.vec0.xy = a_node.pos
 		self.vec1.xy = b_node.pos
 		self.dir_vec = self.vec1 - self.vec0
-		# self.L0 = 
-
+		self.L0 = self.dir_vec.magnitude()
+		self.length = self.L0
 		self.canvas = canvas
 		self.image = pygame.Surface((abs(self.vec0.x-self.vec1.x),abs(self.vec0.y-self.vec1.y)), pygame.SRCALPHA)
 		self.rect = self.image.get_rect(center=(self.vec0+self.vec1)/2)
+		a_node.add_beam_ref(self)
+		b_node.add_beam_ref(self)
 		self.nodes = [a_node, b_node]
 
 		# Spring constant
@@ -74,6 +101,8 @@ class beam(pygame.sprite.Sprite):
 		self.dir_vec = self.vec1 - self.vec0
 		self.image = pygame.transform.scale(self.image, (abs(self.vec0.x-self.vec1.x)+5,abs(self.vec0.y-self.vec1.y)+5))
 		self.rect = self.image.get_rect(center=((self.vec0.x+self.vec1.x)/2, (self.vec1.y+self.vec0.y)/2))
+		self.dir_vec = self.vec1 - self.vec0
+		self.length = self.dir_vec.magnitude()
 
 	def update(self):
 		self.nodes[1].update()
@@ -106,9 +135,12 @@ class button :
 		self.img.fill(BLACK)
 		self.img.blit(self.text_a, self.txt_rect_center)
 		self.canvas.blit(self.img, self.rect)
+		global START_SIM
 		START_SIM = True
 
 def main():
+	global START_SIM
+
 	screen = pygame.display.set_mode((1200,600))
 	pygame.display.set_caption("Game Demo")
 
@@ -140,12 +172,10 @@ def main():
 	sim_rect = pygame.Rect(900, 10, 200, 50)
 	sim_button = button(sim_rect, "Simulate", screen)
 
-	foundation1 = node(screen.get_width()/3, screen.get_height()/2, screen, True)
-	foundation2 = node(2*screen.get_width()/3, screen.get_height()/2, screen, True)
-
 	node_list = pygame.sprite.Group()
-	node_list.add(foundation1)
-	node_list.add(foundation2)
+
+	foundation1 = node(screen.get_width()/3, screen.get_height()/2, screen, node_list, True)
+	foundation2 = node(2*screen.get_width()/3, screen.get_height()/2, screen, node_list, True)
 
 	beam_list = pygame.sprite.Group()
 
@@ -154,7 +184,6 @@ def main():
 	draw = False
 	new_node = None
 	new_beam = None
-	
 
 	while run:
 		screen.fill(WHITE)
@@ -165,12 +194,12 @@ def main():
 
 		# process events looking for mouse related events or end condition
 		for event in pygame.event.get():
+		    x,y = pygame.mouse.get_pos()
 		    if event.type == pygame.QUIT:
 		        run = False
-		    elif event.type == pygame.MOUSEMOTION:
+		    elif event.type == pygame.MOUSEMOTION and not START_SIM:
 		    	if(draw):
 		    		# Check for floor collision
-		    		x,y = pygame.mouse.get_pos()
 		    		has_coll = False
 		    		for t in terr.terrain_list:
 		    			if t.block_s.collidepoint((x,y)):
@@ -188,42 +217,60 @@ def main():
 		    		# new_beam.move((x,y))
 		    elif event.type == pygame.MOUSEBUTTONUP :
 		    	if(draw):
-		    		test_node = pygame.sprite.spritecollideany(new_node, node_list, collided=None)
+		    		test_node = None
+		    		for z in node_list:
+		    			if z.rect.collidepoint((x,y)):
+		    				test_node = z
+		    				break
+		    		# test_node = pygame.sprite.spritecollideany(new_node, node_list, collided=None)
 		    		if test_node is not None:
+		    			print("Node on top of other detected.")
 		    			new_beam.nodes[1] = test_node
+		    			test_node.add_beam_ref(new_beam)
 		    		else:
-			    		node_list.add(copy.copy(new_node))
-			    	beam_list.add(copy.copy(new_beam))
+		    			new_node.add(node_list)
 			    	new_beam = None
 			    	new_node = None
 			    	draw = False
-		    elif event.type == pygame.MOUSEBUTTONDOWN:
+		    elif event.type == pygame.MOUSEBUTTONDOWN and not START_SIM:
 		    	if(not draw):
-			    	x,y = pygame.mouse.get_pos()
 			    	# Check to activate sim
 			    	if sim_rect.collidepoint((x,y)):
 			    		sim_button.activate()
+			    		print("Activated.")
+			    		print(START_SIM)
+			    		break
 			    	# Check if location was inside another node and replace it
-			    	new_node = node(x,y,screen)
-			    	anchor_node = pygame.sprite.spritecollideany(new_node, node_list, collided=None)
+			    	anchor_node = None
+			    	for z in node_list:
+		    			if z.rect.collidepoint((x,y)):
+		    				anchor_node = z
+		    				break
+			    	# anchor_node = pygame.sprite.spritecollideany(new_node, node_list, collided=None)
 			    	if anchor_node is not None:
 			    		draw = True
 			    		new_node = node(x,y,screen)
-			    		new_beam = beam(anchor_node, new_node, screen)
+			    		new_beam = beam(anchor_node, new_node, beam_list, screen)
 
-		if(new_beam is not None):
-			new_beam.update()
+		# if(new_beam is not None):
+		# 	new_beam.update()
 
-		# node_list.update(screen)
-		for b in beam_list:
-			b.update()
+		
+
+		if START_SIM:
+			for n in node_list:
+				print(dt)
+				n.run_sim(dt)
+				n.move(n.pos)
+
+		beam_list.update()
 
 		beam_list.draw(screen)
 		node_list.draw(screen)
 
 		# refresh the screen
 		pygame.display.update()
-		clock.tick(120)
+		dt = clock.tick(120)/1000
 
 if __name__ == '__main__':
     pygame.init()
