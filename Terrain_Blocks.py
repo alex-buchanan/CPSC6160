@@ -2,31 +2,28 @@ import pygame
 from pygame import display
 import math
 
-class block():
-	def __init__(self, pos, sheet, ppos, size, parent): # contains a surface 'block'
+class block(pygame.sprite.Sprite):
+	def __init__(self, pos, sheet, ppos, size, parent, group): # contains a surface 'block'
+		super().__init__(group)
 		##  the rect that defines the shape
 		x = pos[0]
 		y = pos[1]
 		self.block = pygame.Rect(x, y, 25, 25)
-		self.image = pygame.Surface(self.block.size)
-		# print("surface(x,y) = ("+str(ppos[0])+","+str(ppos[1]+300)+")")
-		self.block_s = pygame.Rect(ppos[0],ppos[1]+300,size[0],size[1])
-		self.image_s = parent.subsurface(self.block_s)
-		self.image_s.set_colorkey((255,255,255))
-		# self.image.set_colorkey([255,255,255])
-		self.image.blit(sheet, (0,0), self.block)
-		pygame.transform.scale(self.image, size, self.image_s)
-		self.mask = pygame.mask.from_surface(self.image_s)
+		self.image_b = pygame.Surface(self.block.size)
+		
+		self.rect = pygame.Rect(ppos[0],ppos[1]+300,size[0],size[1])
+		self.image = parent.subsurface(self.rect)
+		
+		self.image_b.blit(sheet, (0,0), self.block)
+
+		pygame.transform.scale(self.image_b, size, self.image)
+		self.image.set_colorkey((255,255,255))
+		self.mask = pygame.mask.from_surface(self.image)
 
 class terrain():
 	def __init__(self, width, height): 
 		self.terrain_sheet = pygame.image.load("Terrain_2.png")
-		# self.terrain_sheet.set_colorkey((0,0,0))
-		self.terrain_list = []
-		self.floor_rect = pygame.Rect(0, 0, width, height)
-		self.floor_surface = pygame.Surface(self.floor_rect.size, pygame.SRCALPHA)	
-		# self.floor_surface.set_colorkey([255,255,255])
-		self.terr_mask = None
+		self.terrain_list = pygame.sprite.Group()
 
 		# Need to create a dictionary that holds all of the terrain blocks 
 		self.terrain_dict = {'LRC': (0,0)}
@@ -47,9 +44,9 @@ class terrain():
 	def set_terrain(self, terr_outline, surface):
 		# terr_outline is a dict of UL corner coords with the text indicator for the block at that coord
 		for terr, pos in terr_outline :
-			self.terrain_list.append(block(self.terrain_dict[terr], self.terrain_sheet, pos, (100,100), surface))
+			block(self.terrain_dict[terr], self.terrain_sheet, pos, (100,100), surface, self.terrain_list)
 			for y in range(pos[1]+100,surface.get_height()-301,50):
-				self.terrain_list.append(block(self.terrain_dict['BTM'], self.terrain_sheet, (pos[0],y), (100,50), surface))
+				block(self.terrain_dict['BTM'], self.terrain_sheet, (pos[0],y), (100,50), surface, self.terrain_list)
 
 	def get_terrain(self):
 		return self.floor_surface

@@ -19,18 +19,25 @@ class node(pygame.sprite.Sprite):
 		global NODE_NUM
 		self.node_num = NODE_NUM
 		NODE_NUM += 1
+		
 		if group is not None:
 			super().__init__(group)
 		else:
 			super().__init__()
+		
 		# kinematic variables
 		self.pos = Vector2(x,y)
 		self.vel = Vector2(0,0)
 		self.fixed = fixed
+		
 		self.image = pygame.Surface((20,20), pygame.SRCALPHA)
+		self.image.fill(WHITE)
 		self.canvas = canvas
 		self.rect = self.image.get_rect(center=self.pos)
 		pygame.draw.circle(self.image, BLACK, (10,10), 10)
+		self.image.set_colorkey(WHITE)
+		self.mask = pygame.mask.from_surface(self.image)
+		
 		self.force_total = Vector2(0,0)
 		self.mass = 20
 		self.vec_list = []
@@ -40,7 +47,7 @@ class node(pygame.sprite.Sprite):
 		if not self.fixed:
 			# Use Euler's Method for now
 			self.force_total = Vector2(G*self.mass)
-			# self.vel = Vector2(0,0)
+			# Sum all of the force vectors acting on this particular node
 			for b in self.vec_list:
 				# print("Node #: ",self.node_num)
 				# print("Beam #: ", b.beam_num)
@@ -51,12 +58,15 @@ class node(pygame.sprite.Sprite):
 					reaction = Vector2(b.dir_vec.normalize())
 				magnitude = (b.L0 - b.length)*b.k
 				self.force_total += magnitude*reaction - self.vel*b.c
+			# Check if the node has bumped up against the ground and negate
+			#   the forces in that direction:
 
 			self.vel += (self.force_total/self.mass)*dt
 			self.pos += self.vel*dt
 
 	def move(self,mouse_pos):
 		pygame.draw.circle(self.image, BLACK, (10,10), 10)
+		self.mask = pygame.mask.from_surface(self.image)
 		self.pos = mouse_pos
 		self.rect.center = self.pos
 
@@ -94,8 +104,8 @@ class beam(pygame.sprite.Sprite):
 		self.nodes = [a_node, b_node]
 
 		# Spring constant
-		self.k = 4
-		self.c = .5
+		self.k = 50
+		self.c = .25
 		self.L0 = Vector2.length(self.dir_vec)
 
 	def move(self, mouse_pos):
@@ -150,6 +160,11 @@ class button :
 		global START_SIM
 		START_SIM = True
 
+class car(pygame.sprite.Sprite):
+	def __init__(self):
+		super.__init__()
+
+
 def main():
 	global START_SIM
 
@@ -186,8 +201,9 @@ def main():
 
 	node_list = pygame.sprite.Group()
 
+	foundation0 = node(50,300,screen,node_list,True)
 	foundation1 = node(screen.get_width()/3, screen.get_height()/2, screen, node_list, True)
-	foundation2 = node(2*screen.get_width()/3, screen.get_height()/2, screen, node_list, True)
+	foundation2 = node(1000, screen.get_height()/2, screen, node_list, True)
 
 	beam_list = pygame.sprite.Group()
 
@@ -212,21 +228,11 @@ def main():
 		    elif event.type == pygame.MOUSEMOTION and not START_SIM:
 		    	if(draw):
 		    		# Check for floor collision
-		    		has_coll = False
-		    		for t in terr.terrain_list:
-		    			if t.block_s.collidepoint((x,y)):
-		    				has_coll = True
-		    				# print("collided")
-		    				x1,y1 = t.image_s.get_offset()
-		    				if not t.mask.get_at((x-x1,y-y1)):
-		    					new_beam.move((x,y))
-		    				# else:
-		    				# 	print("local(x,y) = ("+str(x-x1)+","+str(y-y1)+")")
-		    		if not has_coll:
-		    			new_beam.move((x,y))
-		    		# print("Mask Value = ",terr.terr_mask.get_at((x,y)))
-		    		# if terr.terr_mask.get_at((x,y)) is 0:
-		    		# new_beam.move((x,y))
+		    		curr = new_node.pos
+		    		new_beam.move((x,y))
+		    		if pygame.sprite.spritecollide(new_node, terr.terrain_list, False, pygame.sprite.collide_mask):
+		    			new_beam.move(curr)
+	    			
 		    elif event.type == pygame.MOUSEBUTTONUP :
 		    	if(draw):
 		    		test_node = None
@@ -234,9 +240,7 @@ def main():
 		    			if z.rect.collidepoint((x,y)):
 		    				test_node = z
 		    				break
-		    		# test_node = pygame.sprite.spritecollideany(new_node, node_list, collided=None)
 		    		if test_node is not None:
-		    			print("Node on top of other detected.")
 		    			new_beam.nodes[1] = test_node
 		    			test_node.add_beam_ref(new_beam)
 		    		else:
@@ -249,8 +253,6 @@ def main():
 			    	# Check to activate sim
 			    	if sim_rect.collidepoint((x,y)):
 			    		sim_button.activate()
-			    		print("Activated.")
-			    		print(START_SIM)
 			    		break
 			    	# Check if location was inside another node and replace it
 			    	anchor_node = None
@@ -258,17 +260,13 @@ def main():
 		    			if z.rect.collidepoint((x,y)):
 		    				anchor_node = z
 		    				break
-			    	# anchor_node = pygame.sprite.spritecollideany(new_node, node_list, collided=None)
 			    	if anchor_node is not None:
 			    		draw = True
 			    		new_node = node(x,y,screen)
 			    		new_beam = beam(anchor_node, new_node, beam_list, screen)
 
-		# if(new_beam is not None):
-		# 	new_beam.update()
-
 		if START_SIM:
-			for i in range(200):
+			for i in range(100):
 				for n in node_list:
 					# print(dt)
 					n.run_sim(dt)
