@@ -42,7 +42,7 @@ class node(pygame.sprite.Sprite):
 		self.mass = 20
 		self.vec_list = []
 
-	def run_sim(self,dt):
+	def run_sim(self,dt,terr):
 		global G
 		if not self.fixed:
 			# Use Euler's Method for now
@@ -60,6 +60,15 @@ class node(pygame.sprite.Sprite):
 				self.force_total += magnitude*reaction - self.vel*b.c
 			# Check if the node has bumped up against the ground and negate
 			#   the forces in that direction:
+			t_list = pygame.sprite.spritecollide(self, terr.terrain_list, False, pygame.sprite.collide_mask)
+			for t in t_list:
+				# print(t_list)
+				self_point = Vector2(pygame.sprite.collide_mask(self, t))
+				sur_vec = Vector2(Vector2((10,10))-self_point)
+				mag_in_surface = self.force_total.dot(sur_vec.normalize())
+				sur_vec = mag_in_surface*sur_vec.normalize()
+				self.force_total -= sur_vec
+				self.vel = Vector2((0,0)) # No bounceback
 
 			self.vel += (self.force_total/self.mass)*dt
 			self.pos += self.vel*dt
@@ -173,24 +182,40 @@ def main():
 
 	# Set up the terrain layout
 	terr = Terrain_Blocks.terrain(1200,600)
-	terrain_list = [['LLC',(0,-50)]]
-	terrain_list.append(['LLF', (0,50)])
-	terrain_list.append(['BSF', (100,50)])
-	terrain_list.append(['LRF', (200,50)])
-	terrain_list.append(['LRC', (200,-50)])
-	terrain_list.append(['BSF', (300,-50)])
-	terrain_list.append(['LLC', (400,-50)])
-	terrain_list.append(['LLF', (400,50)])
-	terrain_list.append(['LLC', (500,50)])
+	terrain_list = [['LLC', (0,0)]]
+	terrain_list.append(['RSF', (0,50)])
+	terrain_list.append(['LLF', (0,100)])
+	terrain_list.append(['BSF', (50,100)])
+	terrain_list.append(['BSF', (100,100)])
+	terrain_list.append(['BSF', (150,100)])
+	terrain_list.append(['LRF', (200,100)])
+	terrain_list.append(['LSF', (200,50)])
+	terrain_list.append(['LRC', (200,0)])
+	terrain_list.append(['BSF', (250,0)])
+	terrain_list.append(['BSF', (300,0)])
+	terrain_list.append(['BSF', (350,0)])
+	terrain_list.append(['LLC', (400,0)])
+	terrain_list.append(['RSF', (400,50)])
+	terrain_list.append(['LLF', (400,100)])
+	terrain_list.append(['BSF', (450,100)])
+	terrain_list.append(['LLC', (500,100)])
 	terrain_list.append(['LLF', (500,150)])
+	terrain_list.append(['BSF', (550,150)])
 	terrain_list.append(['LRF', (600,150)])
-	terrain_list.append(['LRC', (600,50)])
-	terrain_list.append(['BSF', (700,50)])
-	terrain_list.append(['BSF', (800,50)])
-	terrain_list.append(['LRF', (900,50)])
-	terrain_list.append(['LRC', (900,-50)])
-	terrain_list.append(['BSF', (1000,-50)])
-	terrain_list.append(['BSF', (1100,-50)])
+	terrain_list.append(['LRC', (600,100)])
+	terrain_list.append(['BSF', (650,100)])
+	terrain_list.append(['BSF', (700,100)])
+	terrain_list.append(['BSF', (750,100)])
+	terrain_list.append(['BSF', (800,100)])
+	terrain_list.append(['BSF', (850,100)])
+	terrain_list.append(['LRF', (900,100)])
+	terrain_list.append(['LSF', (900,50)])
+	terrain_list.append(['LRC', (900,0)])
+	terrain_list.append(['BSF', (950,0)])
+	terrain_list.append(['BSF', (1000,0)])
+	terrain_list.append(['BSF', (1050,0)])
+	terrain_list.append(['BSF', (1100,0)])
+	terrain_list.append(['BSF', (1150,0)])
 	
 	
 	# set up the pygame clock
@@ -213,12 +238,14 @@ def main():
 	new_node = None
 	new_beam = None
 
+	terr.set_terrain(terrain_list, screen)
+
 	while run:
 		screen.fill(WHITE)
 		sim_button.render()
 
 		# Update the terrain
-		terr.set_terrain(terrain_list, screen)
+		terr.render_terrain(screen)
 
 		# process events looking for mouse related events or end condition
 		for event in pygame.event.get():
@@ -269,7 +296,7 @@ def main():
 			for i in range(100):
 				for n in node_list:
 					# print(dt)
-					n.run_sim(dt)
+					n.run_sim(dt,terr)
 					n.move(n.pos)
 				for b in beam_list:
 					b.move(b.nodes[1].pos)
