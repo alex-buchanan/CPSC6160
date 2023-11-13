@@ -74,11 +74,11 @@ class node(pygame.sprite.Sprite):
 					force_vec += mag_in_surface*sur_vec.normalize()
 
 					vel_mag = self.vel.dot(sur_vec.normalize())
-					vel_vec += vel_mag*sur_vec.normalize()
+					vel_vec += 2*vel_mag*sur_vec.normalize()
 
 				self.force_total -= force_vec
 				self.vel += -0.01*vel_vec + (self.force_total/self.mass)*dt
-				self.pos += self.vel*dt - sur_vec.normalize()
+				self.pos += self.vel*dt - 2*sur_vec.normalize()
 			else:
 				self.vel += (self.force_total/self.mass)*dt
 				self.pos += self.vel*dt
@@ -155,6 +155,7 @@ class beam(pygame.sprite.Sprite):
 		self.image.set_colorkey(WHITE)
 		line_rect = pygame.draw.line(self.image, BLACK, (x0-self.rect.x , y0-self.rect.y), (x1-self.rect.x, y1-self.rect.y), 5)
 		self.canvas.blit(self.image, self.rect)
+		self.mask = pygame.mask.from_surface(self.image)
 
 class button :
 	def __init__(self, rect, text, canvas):
@@ -208,9 +209,13 @@ class car(pygame.sprite.Sprite):
 		# Check if the node has bumped up against the ground and negate
 		#   the forces in that direction:
 		t_list = pygame.sprite.spritecollide(self, terr.terrain_list, False, pygame.sprite.collide_mask)
+		b_list = pygame.sprite.spritecollide(self, beams, False, pygame.sprite.collide_mask)
+
 		force_vec = Vector2((0,0))
 		vel_vec = Vector2((0,0))
+
 		if len(t_list):
+			#print(len(t_list))
 			for t in t_list:
 				x_offset = t.rect.x-self.rect.x 
 				y_offset = t.rect.y-self.rect.y
@@ -225,8 +230,41 @@ class car(pygame.sprite.Sprite):
 
 			self.force_total -= force_vec
 			self.vel += -.5*vel_vec + (self.force_total/self.mass)*dt
-			self.pos += self.vel*dt - sur_vec.normalize()
+			self.pos += self.vel*dt - 2*sur_vec.normalize()
 			self.rect.center = self.pos
+		else:
+			self.vel += (self.force_total/self.mass)*dt
+			self.pos += self.vel*dt
+			self.rect.center = self.pos
+
+		force_vec = Vector2((0,0))
+		vel_vec = Vector2((0,0))
+
+		if len(b_list) and b_list is not None:
+			#print("b_list length: ",len(b_list))
+			for t in b_list:
+				x_offset = t.rect.x-self.rect.x 
+				y_offset = t.rect.y-self.rect.y
+				#print("beam mask collide: ",pygame.sprite.collide_mask(self, t))
+				self_point = pygame.sprite.collide_mask(self, t)
+				if self_point is not None:
+					sur_vec = -Vector2(Vector2((20,20)) - Vector2(self_point))
+
+					mag_in_surface = self.force_total.dot(sur_vec.normalize())
+					force_vec += mag_in_surface*sur_vec.normalize()
+
+					vel_mag = self.vel.dot(sur_vec.normalize())
+					vel_vec += vel_mag*sur_vec.normalize()
+
+					self.force_total -= force_vec
+					self.vel += -.5*vel_vec + (self.force_total/self.mass)*dt
+					self.pos += self.vel*dt - 2*sur_vec.normalize()
+					self.rect.center = self.pos
+				else:
+					self.vel += (self.force_total/self.mass)*dt
+					self.pos += self.vel*dt
+					self.rect.center = self.pos
+
 		else:
 			self.vel += (self.force_total/self.mass)*dt
 			self.pos += self.vel*dt
