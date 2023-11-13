@@ -61,17 +61,27 @@ class node(pygame.sprite.Sprite):
 			# Check if the node has bumped up against the ground and negate
 			#   the forces in that direction:
 			t_list = pygame.sprite.spritecollide(self, terr.terrain_list, False, pygame.sprite.collide_mask)
-			for t in t_list:
-				# print(t_list)
-				self_point = Vector2(pygame.sprite.collide_mask(self, t))
-				sur_vec = Vector2(Vector2((10,10))-self_point)
-				mag_in_surface = self.force_total.dot(sur_vec.normalize())
-				sur_vec = mag_in_surface*sur_vec.normalize()
-				self.force_total -= sur_vec
-				self.vel = Vector2((0,0)) # No bounceback
+			force_vec = Vector2((0,0))
+			vel_vec = Vector2((0,0))
+			if len(t_list):
+				for t in t_list:
+					x_offset = t.rect.x-self.rect.x 
+					y_offset = t.rect.y-self.rect.y
+					self_point = Vector2(pygame.sprite.collide_mask(self, t))
+					sur_vec = -Vector2(Vector2((10,10))-self_point)
 
-			self.vel += (self.force_total/self.mass)*dt
-			self.pos += self.vel*dt
+					mag_in_surface = self.force_total.dot(sur_vec.normalize())
+					force_vec += mag_in_surface*sur_vec.normalize()
+
+					vel_mag = self.vel.dot(sur_vec.normalize())
+					vel_vec += vel_mag*sur_vec.normalize()
+
+				self.force_total -= force_vec
+				self.vel += -0.01*vel_vec + (self.force_total/self.mass)*dt
+				self.pos += self.vel*dt - sur_vec.normalize()
+			else:
+				self.vel += (self.force_total/self.mass)*dt
+				self.pos += self.vel*dt
 
 	def move(self,mouse_pos):
 		pygame.draw.circle(self.image, BLACK, (10,10), 10)
@@ -170,8 +180,57 @@ class button :
 		START_SIM = True
 
 class car(pygame.sprite.Sprite):
-	def __init__(self):
-		super.__init__()
+	def __init__(self, x, y, screen):
+		super().__init__()
+		# kinematic variables
+		self.pos = Vector2(x,y)
+		self.vel = Vector2(1,0)
+		
+		self.image = pygame.Surface((40,40), pygame.SRCALPHA)
+		self.image.fill(WHITE)
+		self.rect = self.image.get_rect(center=self.pos)
+		pygame.draw.circle(self.image, BLACK, (20,20), 20)
+		self.image.set_colorkey(WHITE)
+		self.mask = pygame.mask.from_surface(self.image)
+		
+		self.force_total = Vector2(0,0)
+		self.mass = 50
+
+		self.screen = screen
+
+	def update(self):
+		self.screen.blit(self.image, self.rect)
+
+	def simulate(self,beams,terr,dt):
+		global G
+		self.force_total = Vector2(G*self.mass)
+
+		# Check if the node has bumped up against the ground and negate
+		#   the forces in that direction:
+		t_list = pygame.sprite.spritecollide(self, terr.terrain_list, False, pygame.sprite.collide_mask)
+		force_vec = Vector2((0,0))
+		vel_vec = Vector2((0,0))
+		if len(t_list):
+			for t in t_list:
+				x_offset = t.rect.x-self.rect.x 
+				y_offset = t.rect.y-self.rect.y
+				self_point = Vector2(pygame.sprite.collide_mask(self, t))
+				sur_vec = -Vector2(Vector2((20,20))-self_point)
+
+				mag_in_surface = self.force_total.dot(sur_vec.normalize())
+				force_vec += mag_in_surface*sur_vec.normalize()
+
+				vel_mag = self.vel.dot(sur_vec.normalize())
+				vel_vec += vel_mag*sur_vec.normalize()
+
+			self.force_total -= force_vec
+			self.vel += -.5*vel_vec + (self.force_total/self.mass)*dt
+			self.pos += self.vel*dt - sur_vec.normalize()
+			self.rect.center = self.pos
+		else:
+			self.vel += (self.force_total/self.mass)*dt
+			self.pos += self.vel*dt
+			self.rect.center = self.pos
 
 
 def main():
@@ -221,16 +280,22 @@ def main():
 	# set up the pygame clock
 	clock = pygame.time.Clock()
 
+	# Simulation button setup
 	sim_rect = pygame.Rect(900, 10, 200, 50)
 	sim_button = button(sim_rect, "Simulate", screen)
 
+	# Node group and initial nodes
 	node_list = pygame.sprite.Group()
 
 	foundation0 = node(50,300,screen,node_list,True)
 	foundation1 = node(screen.get_width()/3, screen.get_height()/2, screen, node_list, True)
 	foundation2 = node(1000, screen.get_height()/2, screen, node_list, True)
 
+	# Beam group
 	beam_list = pygame.sprite.Group()
+
+	# Car
+	vehicle = car(20,280,screen)
 
 	# Basic state conditionals
 	run = True
@@ -240,12 +305,17 @@ def main():
 
 	terr.set_terrain(terrain_list, screen)
 
+
+
 	while run:
 		screen.fill(WHITE)
 		sim_button.render()
 
 		# Update the terrain
 		terr.render_terrain(screen)
+
+		# Render the car
+		vehicle.update()
 
 		# process events looking for mouse related events or end condition
 		for event in pygame.event.get():
@@ -300,6 +370,7 @@ def main():
 					n.move(n.pos)
 				for b in beam_list:
 					b.move(b.nodes[1].pos)
+				vehicle.simulate(beam_list,terr,dt)
 
 		
 		node_list.update()
