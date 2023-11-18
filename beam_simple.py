@@ -9,7 +9,7 @@ WHITE = [255,255,255]
 BLACK = [10,10,10]
 
 # Constants
-G = Vector2(0,2)
+G = Vector2(0,1)
 START_SIM = False
 
 class node(pygame.sprite.Sprite):
@@ -36,10 +36,10 @@ class node(pygame.sprite.Sprite):
 		self.force_total = Vector2()
 		self.ground_force = Vector2()
 		self.terr_list = []
-		self.mass = 5
+		self.mass = 10
 		self.vec_list = []
 
-	def run_sim(self,dt,terr):
+	def Simulate(self,dt,terr):
 		global G
 		if not self.fixed:
 			# Use Euler's Method for now
@@ -64,8 +64,8 @@ class node(pygame.sprite.Sprite):
 					self_point = pygame.sprite.collide_mask(self, t)
 					if self_point is not None:
 						sur_vec = Vector2(self_point) - Vector2(10,10)
-						self.vel = -self.vel.project(sur_vec)
-						self.pos += self.vel*dt
+						self.vel -= 1*self.vel.project(sur_vec)
+						self.pos += t.overlap(self.rect,20)
 						self.update(self.pos)
 					else :
 						self.vel += (self.force_total/self.mass)*dt
@@ -80,6 +80,7 @@ class node(pygame.sprite.Sprite):
 		if mouse_pos is not None:
 			self.pos.update(mouse_pos)
 			self.rect.center = self.pos
+			self.mask = pygame.mask.from_surface(self.image)
 		self.canvas.blit(self.image, self.rect)
 
 	def add_beam_ref(self, beam):
@@ -105,41 +106,62 @@ class beam(pygame.sprite.Sprite):
 		b_node.add_beam_ref(self)
 
 		# Spring constant
-		self.k = 50
-		self.c = .25
+		self.k = 100
+		self.c = .5
 
-	def move(self, mouse_pos):
+	def Simulate(self):
 		global START_SIM
 		
 		self.dir_vec.update(self.nodes[1].pos - self.nodes[0].pos)
 		self.length = self.dir_vec.magnitude()
 
 		self.image = pygame.transform.scale(self.image, (abs(self.nodes[0].pos.x-self.nodes[1].pos.x)+5,abs(self.nodes[0].pos.y-self.nodes[1].pos.y)+5))
-		self.rect.center = ((self.nodes[0].pos.x+self.nodes[1].pos.x)/2, (self.nodes[1].pos.y+self.nodes[0].pos.y)/2)
+		self.rect.width = abs(self.nodes[0].pos.x-self.nodes[1].pos.x)+5
+		self.rect.height = abs(self.nodes[0].pos.y-self.nodes[1].pos.y)+5
+		self.rect.center = ((self.nodes[0].pos.x + self.nodes[1].pos.x)/2, (self.nodes[1].pos.y + self.nodes[0].pos.y)/2)
 		
 		if not START_SIM:
 			self.L0 = self.dir_vec.magnitude()
 
 	def update(self):
-		self.nodes[0].update()
+		global START_SIM
+
+		# self.nodes[0].update()
 		self.nodes[1].update()
 
 		x0, y0 = self.nodes[0].pos
 		x1, y1 = self.nodes[1].pos
 
-		self.rect.width = abs(x0-x1)+5
-		self.rect.height = abs(y0-y1)+5
-		self.rect.center = ((x0+x1)/2, (y1+y0)/2)
-
 		self.dir_vec.update(self.nodes[1].pos - self.nodes[0].pos)
+		self.length = abs(self.dir_vec.magnitude())
 
+		if not START_SIM:
+			self.L0 = self.dir_vec.magnitude()
+
+		self.rect.width = abs(self.nodes[0].pos.x-self.nodes[1].pos.x)+5
+		self.rect.height = abs(self.nodes[0].pos.y-self.nodes[1].pos.y)+5
+		self.rect.center = ((self.nodes[0].pos.x + self.nodes[1].pos.x)/2, (self.nodes[1].pos.y + self.nodes[0].pos.y)/2)
+
+		self.image = pygame.transform.scale(self.image, (self.rect.width, self.rect.height))
 		self.image.fill(WHITE)
 		self.image.set_colorkey(WHITE)
 
-		pygame.draw.line(self.image, BLACK, (x0-self.rect.x , y0-self.rect.y), (x1-self.rect.x, y1-self.rect.y), 5)
+		R = int((min(255,max(self.nodes[0].force_total.magnitude(),self.nodes[1].force_total.magnitude()))))
+		# print(self.R)
+		pygame.draw.line(self.image, (R,10,10,255), (x0-self.rect.x , y0-self.rect.y), (x1-self.rect.x, y1-self.rect.y), 5)
 		self.canvas.blit(self.image, self.rect)
 		
+
 		self.mask = pygame.mask.from_surface(self.image)
+
+	def overlap(self, obj_b, radius):
+		obj_center_wrt_line = self.nodes[0].pos - obj_b.pos
+		vec_to_center_from_line = obj_center_wrt_line.project(self.dir_vec) - obj_center_wrt_line
+		reflect_mag = radius - vec_to_center_from_line.magnitude()
+		return reflect_mag*vec_to_center_from_line.normalize()
+
+
+
 
 class button :
 	def __init__(self, rect, text, canvas):
@@ -169,7 +191,7 @@ class car(pygame.sprite.Sprite):
 		super().__init__()
 		# kinematic variables
 		self.pos = Vector2(x,y)
-		self.vel = Vector2(.25,0)
+		self.vel = Vector2(1,0)
 		
 		self.image = pygame.Surface((40,40), pygame.SRCALPHA)
 		self.image.fill(WHITE)
@@ -183,7 +205,12 @@ class car(pygame.sprite.Sprite):
 
 		self.screen = screen
 
-	def update(self):
+		self.terr_list = []
+		self.beam_list = []
+
+	def update(self, pos=None):
+		if pos is not None:
+			self.rect.center = pos
 		self.screen.blit(self.image, self.rect)
 
 	def simulate(self,beams,terr,dt):
@@ -192,67 +219,44 @@ class car(pygame.sprite.Sprite):
 
 		# Check if the node has bumped up against the ground and negate
 		#   the forces in that direction:
-		t_list = pygame.sprite.spritecollide(self, terr.terrain_list, False, pygame.sprite.collide_mask)
-		b_list = pygame.sprite.spritecollide(self, beams, False, pygame.sprite.collide_mask)
+		self.terr_list.clear()
+		self.terr_list.extend(pygame.sprite.spritecollide(self, terr.terrain_list, False, pygame.sprite.collide_mask))
+		self.beam_list.clear()
+		self.beam_list.extend(pygame.sprite.spritecollide(self, beams, False, pygame.sprite.collide_mask))
 
-		force_vec = Vector2((0,0))
-		vel_vec = Vector2((0,0))
-
-		if len(t_list):
-			#print(len(t_list))
-			for t in t_list:
-				x_offset = t.rect.x-self.rect.x 
-				y_offset = t.rect.y-self.rect.y
-				self_point = Vector2(pygame.sprite.collide_mask(self, t))
-				sur_vec = -Vector2(Vector2((20,20))-self_point)
-
-				mag_in_surface = self.force_total.dot(sur_vec.normalize())
-				force_vec += mag_in_surface*sur_vec.normalize()
-
-				vel_mag = self.vel.dot(sur_vec.normalize())
-				vel_vec += vel_mag*sur_vec.normalize()
-
-			self.force_total -= force_vec
-			self.vel += -.5*vel_vec + (self.force_total/self.mass)*dt
-			self.pos += self.vel*dt - 2*sur_vec.normalize()
-			self.rect.center = self.pos
-		else:
-			self.vel += (self.force_total/self.mass)*dt
-			self.pos += self.vel*dt
-			self.rect.center = self.pos
-
-		force_vec = Vector2((0,0))
-		vel_vec = Vector2((0,0))
-
-		if len(b_list) and b_list is not None:
-			#print("b_list length: ",len(b_list))
-			for t in b_list:
-				x_offset = t.rect.x-self.rect.x 
-				y_offset = t.rect.y-self.rect.y
-				#print("beam mask collide: ",pygame.sprite.collide_mask(self, t))
+		if len(self.terr_list):
+			for t in self.terr_list:
 				self_point = pygame.sprite.collide_mask(self, t)
 				if self_point is not None:
-					sur_vec = -Vector2(Vector2((20,20)) - Vector2(self_point))
-
-					mag_in_surface = self.force_total.dot(sur_vec.normalize())
-					force_vec += mag_in_surface*sur_vec.normalize()
-
-					vel_mag = self.vel.dot(sur_vec.normalize())
-					vel_vec += vel_mag*sur_vec.normalize()
-
-					self.force_total -= force_vec
-					self.vel += -.5*vel_vec + (self.force_total/self.mass)*dt
-					self.pos += self.vel*dt - 2*sur_vec.normalize()
-					self.rect.center = self.pos
-				else:
+					sur_vec = Vector2(self_point) - Vector2(20,20)
+					self.vel -= 1.5*self.vel.project(sur_vec)
+					self.pos += t.overlap(self.rect,40)
+					self.update(self.pos)
+				else :
 					self.vel += (self.force_total/self.mass)*dt
 					self.pos += self.vel*dt
-					self.rect.center = self.pos
-
+					self.update(self.pos)
 		else:
 			self.vel += (self.force_total/self.mass)*dt
 			self.pos += self.vel*dt
-			self.rect.center = self.pos
+			self.update(self.pos)
+
+		if len(self.beam_list):
+			for t in self.beam_list:
+				self_point = pygame.sprite.collide_mask(self, t)
+				if self_point is not None:
+					sur_vec = Vector2(self_point) - Vector2(20,20)
+					self.vel -= 1.5*self.vel.project(sur_vec)
+					self.pos += t.overlap(self,20)
+					self.update(self.pos)
+				else :
+					self.vel += (self.force_total/self.mass)*dt
+					self.pos += self.vel*dt
+					self.update(self.pos)
+		else:
+			self.vel += (self.force_total/self.mass)*dt
+			self.pos += self.vel*dt
+			self.update(self.pos)
 
 
 def main():
@@ -327,7 +331,7 @@ def main():
 
 	terr.set_terrain(terrain_list, screen)
 
-
+	max_force = 0
 
 	while run:
 		screen.fill(WHITE)
@@ -349,10 +353,10 @@ def main():
 		    		# Check for floor collision
 		    		curr = new_node.pos
 		    		new_beam.nodes[1].update((x,y))
-		    		new_beam.move((x,y))
+		    		# new_beam.move()
 		    		if pygame.sprite.spritecollide(new_node, terr.terrain_list, False, pygame.sprite.collide_mask):
 		    			new_beam.nodes[1].update(curr)
-		    			new_beam.move(curr)
+		    			# new_beam.move()
 	    			
 		    elif event.type == pygame.MOUSEBUTTONUP :
 		    	if(draw):
@@ -389,13 +393,18 @@ def main():
 			    		new_node = node(x,y,screen)
 			    		new_beam = beam(anchor_node, new_node, beam_list, screen)
 
+		max_force = 0
+
 		if START_SIM:
 			for i in range(100):
 				for n in node_list:
-					n.run_sim(dt,terr)
+					n.Simulate(dt/12000,terr)
+					if n.force_total.magnitude() > max_force:
+						max_force = n.force_total.magnitude()
 				for b in beam_list:
-					b.move(b.nodes[1].pos)
-				# vehicle.simulate(beam_list,terr,dt)
+					b.Simulate()
+				vehicle.simulate(beam_list,terr,dt/12000)
+			# print(max_force)
 
 		
 		node_list.update()
@@ -406,7 +415,7 @@ def main():
 
 		# refresh the screen
 		pygame.display.update()
-		dt = clock.tick(60)/1000
+		dt = clock.tick(120)
 
 if __name__ == '__main__':
     pygame.init()
