@@ -19,25 +19,35 @@ class block(pygame.sprite.Sprite):
 		self.image_b.blit(sheet, (0,0), self.nrect)
 
 		pygame.transform.scale(self.image_b, size, self.image)
-
 		self.mask = pygame.mask.from_surface(self.image)
+		# print(self.desc," : ", self.rect)
+
 		parent.blit(self.image, self.rect)
+		
 
 	def update(self, screen):
 		screen.blit(self.image,self.rect)
+		self.mask = pygame.mask.from_surface(self.image)
 
 	# returns the overlap offsets
 	def overlap(self, node_rect, diameter):
+		# print(self.desc)
 		match self.desc:
 			case 'LRC' :
-				if node_rect.y-diameter <= self.rect.y:
+				if (node_rect.y + diameter - 10) > self.rect.y:
+					# print("Node Top: ", node_rect.y)
+					# print("Node Floor: ",node_rect.y + diameter - 10)
+					# print("Block Top: ", self.rect.y)
 					x_offset = self.rect.x - node_rect.x - diameter
 					return Vector2(x_offset, 0)
 				else :
-					y_offset = -(-node_rect.y + self.rect.y - diameter)
+					y_offset = -node_rect.y + self.rect.y - diameter
 					return Vector2(0, y_offset)
 			case 'LLC' :
-				if node_rect.y-diameter >= self.rect.y:
+				if node_rect.y + diameter - 2 > self.rect.y:
+					# print("Node Floor: ", node_rect.y + diameter - 2)
+					# print("node Pos: ", node_rect)
+					# print("Block Top: ", self.rect.y)
 					x_offset = -(-self.rect.x + node_rect.x - 50)
 					return Vector2(x_offset, 0)
 				else :
