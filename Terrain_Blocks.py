@@ -20,7 +20,6 @@ class block(pygame.sprite.Sprite):
 
 		pygame.transform.scale(self.image_b, size, self.image)
 		self.mask = pygame.mask.from_surface(self.image)
-		# print(self.desc," : ", self.rect)
 
 		parent.blit(self.image, self.rect)
 		
@@ -30,45 +29,22 @@ class block(pygame.sprite.Sprite):
 		self.mask = pygame.mask.from_surface(self.image)
 
 	# returns the overlap offsets
-	def overlap(self, node_rect, diameter):
-		# print(self.desc)
-		match self.desc:
-			case 'LRC' :
-				if (node_rect.y + diameter - 10) > self.rect.y:
-					# print("Node Top: ", node_rect.y)
-					# print("Node Floor: ",node_rect.y + diameter - 10)
-					# print("Block Top: ", self.rect.y)
-					x_offset = self.rect.x - node_rect.x - diameter
-					return Vector2(x_offset, 0)
-				else :
-					y_offset = -node_rect.y + self.rect.y - diameter
-					return Vector2(0, y_offset)
-			case 'LLC' :
-				if node_rect.y + diameter - 2 > self.rect.y:
-					# print("Node Floor: ", node_rect.y + diameter - 2)
-					# print("node Pos: ", node_rect)
-					# print("Block Top: ", self.rect.y)
-					x_offset = -(-self.rect.x + node_rect.x - 50)
-					return Vector2(x_offset, 0)
-				else :
-					y_offset = -node_rect.y + self.rect.y - diameter
-					return Vector2(0, y_offset)
-
-			case 'LSF' :
-				x_offset = (self.rect.x - node_rect.x - diameter ) 
-				return Vector2(x_offset, 0)
-
-			case 'RSF' :
-				x_offset = (self.rect.x - node_rect.x + 50) 
-				return Vector2(x_offset, 0)
-
-			case 'BSF' :
-				y_offset = -node_rect.y + self.rect.y - diameter
-				# print(y_offset)
-				return Vector2(0, y_offset)
-
-			case _:
-				return Vector2(0,0)
+	def overlap(self, node_rect):
+		overlap_vec = Vector2()
+		x_offset = self.rect.x - node_rect.rect.x
+		y_offset = self.rect.y - node_rect.rect.y
+		dx = node_rect.mask.overlap_area(self.mask, (x_offset + 1, y_offset)) - node_rect.mask.overlap_area(self.mask, (x_offset - 1, y_offset))
+		dy = -(node_rect.mask.overlap_area(self.mask, (x_offset, y_offset + 1)) - node_rect.mask.overlap_area(self.mask, (x_offset, y_offset - 1)))
+		while dx != 0 or dy != 0:
+			d_p = Vector2(dx,dy)
+			node_rect.pos += d_p.normalize()
+			node_rect.rect.center = node_rect.pos
+			x_offset = self.rect.x - node_rect.rect.x
+			y_offset = self.rect.y - node_rect.rect.y
+			dx = node_rect.mask.overlap_area(self.mask, (x_offset + 1, y_offset)) - node_rect.mask.overlap_area(self.mask, (x_offset - 1, y_offset))
+			dy = node_rect.mask.overlap_area(self.mask, (x_offset, y_offset + 1)) - node_rect.mask.overlap_area(self.mask, (x_offset, y_offset - 1))
+			overlap_vec += d_p.normalize()
+		node_rect.vel += 1.125*node_rect.vel.magnitude()*overlap_vec.normalize()
 
 
 class terrain():
