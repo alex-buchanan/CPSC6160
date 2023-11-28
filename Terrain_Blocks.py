@@ -33,8 +33,12 @@ class block(pygame.sprite.Sprite):
 		overlap_vec = Vector2()
 		x_offset = self.rect.x - node_rect.rect.x
 		y_offset = self.rect.y - node_rect.rect.y
+		
+		# Determine the vector that reduce the overlap between the two masks
 		dx = node_rect.mask.overlap_area(self.mask, (x_offset + 1, y_offset)) - node_rect.mask.overlap_area(self.mask, (x_offset - 1, y_offset))
 		dy = -(node_rect.mask.overlap_area(self.mask, (x_offset, y_offset + 1)) - node_rect.mask.overlap_area(self.mask, (x_offset, y_offset - 1)))
+		
+		# Move the intersecting object along the direction that keeps reducing the overlap
 		while dx != 0 or dy != 0:
 			d_p = Vector2(dx,dy)
 			node_rect.pos += d_p.normalize()
@@ -44,6 +48,8 @@ class block(pygame.sprite.Sprite):
 			dx = node_rect.mask.overlap_area(self.mask, (x_offset + 1, y_offset)) - node_rect.mask.overlap_area(self.mask, (x_offset - 1, y_offset))
 			dy = node_rect.mask.overlap_area(self.mask, (x_offset, y_offset + 1)) - node_rect.mask.overlap_area(self.mask, (x_offset, y_offset - 1))
 			overlap_vec += d_p.normalize()
+		
+		# Reflect the velocity of the object along the direction of 
 		node_rect.vel += 1.125*node_rect.vel.magnitude()*overlap_vec.normalize()
 
 
