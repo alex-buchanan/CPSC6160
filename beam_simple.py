@@ -7,6 +7,7 @@ import Terrain_Blocks
 #colors
 WHITE = [255,255,255]
 BLACK = [10,10,10]
+RED = [255,0,0]
 
 # Constants
 G = Vector2(0,2)
@@ -31,9 +32,9 @@ class node(pygame.sprite.Sprite):
 		self.canvas = canvas
 		self.rect = self.image.get_rect(center=self.pos)
 
-		pygame.draw.circle(self.image, BLACK, (10,10), 10)
+		pygame.draw.circle(self.image, RED, (10,10), 10)
 		self.image.set_colorkey(WHITE)
-		self.mask = pygame.mask.from_threshold(self.image, BLACK, BLACK)
+		self.mask = pygame.mask.from_threshold(self.image, RED, [10,10,10])
 		
 		self.force_total = Vector2()
 		self.ground_force = Vector2()
@@ -82,8 +83,8 @@ class node(pygame.sprite.Sprite):
 		
 	def update(self):		
 		self.image.fill(WHITE)	
-		pygame.draw.circle(self.image, BLACK, (10,10), 10)
-		self.mask = pygame.mask.from_threshold(self.image, BLACK, BLACK)
+		pygame.draw.circle(self.image, RED, (10,10), 10)
+		self.mask = pygame.mask.from_threshold(self.image, RED, [10,10,10])
 		self.canvas.blit(self.image, self.rect)
 
 	def add_beam_ref(self, beam):
@@ -158,6 +159,8 @@ class beam(pygame.sprite.Sprite):
 
 		self.R = int((min(255,max(self.nodes[0].force_total.magnitude(),self.nodes[1].force_total.magnitude()))))
 		pygame.draw.line(self.image, (self.R,10,10,255), (x0-self.rect.x , y0-self.rect.y), (x1-self.rect.x, y1-self.rect.y), 5)
+		pygame.draw.circle(self.image, (self.R,10,10,255), self.nodes[0].pos, 2.5)
+		pygame.draw.circle(self.image, (self.R,10,10,255), self.nodes[1].pos, 2.5)
 		self.mask = pygame.mask.from_threshold(self.image, (self.R,10,10), (10,10,10))
 		self.canvas.blit(self.image, self.rect)
 
@@ -182,7 +185,7 @@ class beam(pygame.sprite.Sprite):
 		return reflect_mag*vec_to_center_from_line.normalize()
 
 class button :
-	def __init__(self, rect, text, canvas):
+	def __init__(self, rect, text, value, canvas):
 		smallfont = pygame.font.SysFont('Corbel',35)
 		self.text = smallfont.render(text , True , BLACK)
 		self.text_a = smallfont.render(text , True , WHITE)
@@ -190,6 +193,7 @@ class button :
 		self.rect = rect
 		self.img = pygame.Surface((self.rect.width+5, self.rect.height+5), pygame.SRCALPHA)
 		self.canvas = canvas
+		self.value = value
 
 	def render(self):
 		self.img.fill(WHITE)
@@ -202,7 +206,7 @@ class button :
 		self.img.blit(self.text_a, self.txt_rect_center)
 		self.canvas.blit(self.img, self.rect)
 		global START_SIM
-		START_SIM = True
+		START_SIM = self.value
 
 class data :
 	def __init__(self, data, rect, canvas):
@@ -294,9 +298,21 @@ class car(pygame.sprite.Sprite):
 			self.pos += self.vel*dt
 		self.update(self.pos)
 
+	def reset(self, x, y):
+		self.pos = Vector2(x,y)
+		self.vel = Vector2(1,0)
+		self.t_list.clear()
+		self.beam_list.clear()
+		self.update(self.pos)
+
+
 
 def main():
 	global START_SIM
+	dt = 0
+	t_total = 0
+	vis_force = 0.0
+	vis_mag = 0.0
 
 	screen = pygame.display.set_mode((1200,600))
 	pygame.display.set_caption("Game Demo")
@@ -344,10 +360,12 @@ def main():
 
 	# Simulation button setup
 	sim_rect = pygame.Rect(900, 10, 200, 50)
-	sim_button = button(sim_rect, "Simulate", screen)
-	d1_rect = pygame.Rect(900,70,200,20)
+	reset_rect = pygame.Rect(900, 70, 200, 50)
+	sim_button = button(sim_rect, "Simulate", True, screen)
+	reset_button = button(reset_rect, "Reset Sim", False, screen)
+	d1_rect = pygame.Rect(900,130,200,20)
 	d1 = data("", d1_rect, screen)
-	d2_rect = pygame.Rect(900,100,200,20)
+	d2_rect = pygame.Rect(900,160,200,20)
 	d2 = data("", d2_rect, screen)
 
 	# Node group and initial nodes
@@ -376,6 +394,7 @@ def main():
 	while run:
 		screen.fill(WHITE)
 		sim_button.render()
+		reset_button.render()
 
 		# Update the terrain
 		terr.render_terrain(screen)
@@ -395,7 +414,6 @@ def main():
 		    		new_beam.nodes[1].move((x,y))
 		    		if len(pygame.sprite.spritecollide(new_beam.nodes[1], terr.terrain_list, False, pygame.sprite.collide_mask)):
 		    			new_beam.nodes[1].move(curr)
-		    		
 	    			
 		    elif event.type == pygame.MOUSEBUTTONUP :
 		    	if(draw):
@@ -415,8 +433,8 @@ def main():
 			    	new_beam = None
 			    	new_node = None
 			    	draw = False
-		    elif event.type == pygame.MOUSEBUTTONDOWN and not START_SIM:
-		    	if(not draw):
+		    elif event.type == pygame.MOUSEBUTTONDOWN:
+		    	if(not draw) and not START_SIM:
 			    	# Check to activate sim
 			    	if sim_rect.collidepoint((x,y)):
 			    		sim_button.activate()
@@ -431,6 +449,17 @@ def main():
 			    		draw = True
 			    		new_node = node(x,y,screen)
 			    		new_beam = beam(anchor_node, new_node, beam_list, screen)
+		    	if reset_rect.collidepoint((x,y)):
+		    		beam_list.empty()
+		    		node_list.empty()
+		    		
+		    		foundation0 = node(50,300,screen,node_list,True)
+		    		foundation1 = node(screen.get_width()/3, screen.get_height()/2, screen, node_list, True)
+		    		foundation2 = node(1000, screen.get_height()/2, screen, node_list, True)
+		    		
+		    		vehicle.reset(20,280)
+		    		reset_button.activate()
+		    		break
 
 		max_force = 0.0
 
@@ -443,16 +472,24 @@ def main():
 				for b in beam_list:
 					b.Simulate()
 				vehicle.simulate(beam_list,terr,dt/12000)
-			# print(max_force)
 		
+
 		node_list.update()
 		beam_list.update()
 
 		beam_list.draw(screen)
 		node_list.draw(screen)
 
-		d1.render(str('Max Force: {:.5}'.format(max_force)))
-		d2.render(str('Vehicle Velocity: {:.5}'.format(vehicle.vel.magnitude())))
+		t_total += dt
+
+		# only update once every 1/2 second
+		if t_total > 500:
+			t_total = 0
+			vis_force = max_force
+			vis_mag = vehicle.vel.magnitude()
+
+		d1.render(str('Max Force: {:.5}'.format(vis_force)))
+		d2.render(str('Vehicle Velocity: {:.5}'.format(vis_mag)))
 
 		# refresh the screen
 		pygame.display.update()

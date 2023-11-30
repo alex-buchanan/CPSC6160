@@ -3,6 +3,7 @@ import copy
 from pygame.math import Vector2
 import math
 import Terrain_Blocks
+from Arrow import draw_arrow
 
 #colors
 WHITE = [255,255,255]
@@ -22,10 +23,12 @@ class physics:
 
 		self.CG_point = Vector2()
 		self.I = 0
+		self.cntrd_to_obj = Vector2()
 
 		self.type = type_obj
 
 	def move(self, dt):
+		# Need to create a list of all forces on the object and their locations
 		collision = pygame.sprite.spritecollide(self.obj, self.obj.blck_grp, False, pygame.sprite.collide_mask)
 		if collision :
 			overlap_vec = Vector2()
@@ -35,7 +38,7 @@ class physics:
 			dy = (self.obj.mask.overlap_area(collision[0].mask, (x_offset, y_offset + 1)) - self.obj.mask.overlap_area(collision[0].mask, (x_offset, y_offset - 1)))
 			overlap_mask = self.obj.mask.overlap_mask(collision[0].mask, (x_offset,y_offset))
 			overlap_centroid = overlap_mask.centroid()
-			print(overlap_centroid[0]+collision[0].rect.x, overlap_centroid[1]+collision[0].rect.y)
+			self.cntrd_to_obj = self.pos - Vector2(overlap_centroid[0]+self.obj.rect.x, overlap_centroid[1]+self.obj.rect.y)
 			while dx != 0 or dy != 0:
 				d_p = Vector2(dx,dy)
 				self.pos += d_p.normalize()
@@ -44,11 +47,7 @@ class physics:
 				y_offset = collision[0].rect.y - self.obj.rect.y
 				dx = self.obj.mask.overlap_area(collision[0].mask, (x_offset + 1, y_offset)) - self.obj.mask.overlap_area(collision[0].mask, (x_offset - 1, y_offset))
 				dy = self.obj.mask.overlap_area(collision[0].mask, (x_offset, y_offset + 1)) - self.obj.mask.overlap_area(collision[0].mask, (x_offset, y_offset - 1))
-				overlap_vec += d_p.normalize()
-				print(dx,dy)
-			print(overlap_vec)
-			self.vel += 1.5*self.vel.reflect(overlap_vec)
-			print(self.vel)
+			self.vel += 1.5*self.vel.magnitude()*self.cntrd_to_obj.normalize()
 		self.update(dt)
 		self.obj.rect.center = self.pos
 
@@ -62,14 +61,16 @@ class physics:
 class block(pygame.sprite.Sprite):
 	def __init__(self, canvas):
 		super().__init__()
-		self.pos = Vector2(300,300)
+		self.phy = physics(self, (300,300), (0,0), "beam")
 
 		self.screen = canvas
 
 		self.image = pygame.Surface((40,40), pygame.SRCALPHA)
 		self.image.fill(WHITE)
 
-		self.rect = self.image.get_rect(center=self.pos)
+		self.overlap_centroid = Vector2()
+
+		self.rect = self.image.get_rect(center=self.phy.pos)
 		pygame.draw.line(self.image, BLACK, (0,0) , (self.rect.width,self.rect.height), 4)
 		self.mask = pygame.mask.from_threshold(self.image, BLACK, BLACK)
 
@@ -85,7 +86,7 @@ class car(pygame.sprite.Sprite):
 		# self.vel = Vector2(10,10)
 
 		# Physics Engine
-		self.phy = physics(self, (20,20), (10,10),"ball")
+		self.phy = physics(self, (20,300), (10,0), "ball")
 
 		self.blck_grp = blockgroup
 		
@@ -106,29 +107,9 @@ class car(pygame.sprite.Sprite):
 	def update(self):
 		self.mask = pygame.mask.from_threshold(self.image,BLACK, BLACK)
 		self.screen.blit(self.image, self.rect)
-
-	# def simulate(self, dt):
-	# 	collision = pygame.sprite.spritecollide(self, self.blck_grp, False, pygame.sprite.collide_mask)
-	# 	if collision :
-	# 		overlap_vec = Vector2()
-	# 		x_offset = collision[0].rect.x - self.rect.x
-	# 		y_offset = collision[0].rect.y - self.rect.y
-	# 		dx = self.mask.overlap_area(collision[0].mask, (x_offset + 1, y_offset)) - self.mask.overlap_area(collision[0].mask, (x_offset - 1, y_offset))
-	# 		dy = -(self.mask.overlap_area(collision[0].mask, (x_offset, y_offset + 1)) - self.mask.overlap_area(collision[0].mask, (x_offset, y_offset - 1)))
-	# 		while dx != 0 or dy != 0:
-	# 			d_p = Vector2(dx,dy)
-	# 			self.pos += d_p.normalize()
-	# 			self.rect.center = self.pos
-	# 			x_offset = collision[0].rect.x - self.rect.x
-	# 			y_offset = collision[0].rect.y - self.rect.y
-	# 			dx = self.mask.overlap_area(collision[0].mask, (x_offset + 1, y_offset)) - self.mask.overlap_area(collision[0].mask, (x_offset - 1, y_offset))
-	# 			dy = self.mask.overlap_area(collision[0].mask, (x_offset, y_offset + 1)) - self.mask.overlap_area(collision[0].mask, (x_offset, y_offset - 1))
-	# 			overlap_vec += d_p.normalize()
-	# 			print(dx,dy)
-	# 		self.vel += 1.5*self.vel.magnitude()*overlap_vec.normalize()
-	# 		print(self.vel)
-	# 	self.pos += self.vel*dt
-	# 	self.rect.center = self.pos
+		# draw_arrow(self.screen, self.phy.pos, self.phy.vel+self.phy.pos, WHITE, 5, 10, 5)
+		if self.phy.cntrd_to_obj.x != 0:
+			draw_arrow(self.screen, self.phy.pos, -self.phy.cntrd_to_obj+self.phy.pos, (255,0,0), 5, 10, 5)
 
 def main():
 	global START_SIM
