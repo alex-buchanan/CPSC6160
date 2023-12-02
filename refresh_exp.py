@@ -21,6 +21,7 @@ class physics:
 		self.forces = Vector2()
 		self.torque = 0
 
+		# should be calculated from the mask?
 		self.CG_point = Vector2()
 		self.I = 0
 		self.cntrd_to_obj = Vector2()
@@ -39,14 +40,18 @@ class physics:
 			overlap_mask = self.obj.mask.overlap_mask(collision[0].mask, (x_offset,y_offset))
 			overlap_centroid = overlap_mask.centroid()
 			self.cntrd_to_obj = self.pos - Vector2(overlap_centroid[0]+self.obj.rect.x, overlap_centroid[1]+self.obj.rect.y)
-			while dx != 0 or dy != 0:
-				d_p = Vector2(dx,dy)
-				self.pos += d_p.normalize()
-				self.obj.rect.center = self.pos
-				x_offset = collision[0].rect.x - self.obj.rect.x
-				y_offset = collision[0].rect.y - self.obj.rect.y
-				dx = self.obj.mask.overlap_area(collision[0].mask, (x_offset + 1, y_offset)) - self.obj.mask.overlap_area(collision[0].mask, (x_offset - 1, y_offset))
-				dy = self.obj.mask.overlap_area(collision[0].mask, (x_offset, y_offset + 1)) - self.obj.mask.overlap_area(collision[0].mask, (x_offset, y_offset - 1))
+			
+			# Move the obj until it no longer collides with this object
+			self.pos += -self.vel*dt
+			
+			# while dx != 0 or dy != 0:
+			# 	d_p = Vector2(dx,dy)
+			# 	self.pos += d_p.normalize()
+			# 	self.obj.rect.center = self.pos
+			# 	x_offset = collision[0].rect.x - self.obj.rect.x
+			# 	y_offset = collision[0].rect.y - self.obj.rect.y
+			# 	dx = self.obj.mask.overlap_area(collision[0].mask, (x_offset + 1, y_offset)) - self.obj.mask.overlap_area(collision[0].mask, (x_offset - 1, y_offset))
+			# 	dy = self.obj.mask.overlap_area(collision[0].mask, (x_offset, y_offset + 1)) - self.obj.mask.overlap_area(collision[0].mask, (x_offset, y_offset - 1))
 			self.vel += 1.5*self.vel.magnitude()*self.cntrd_to_obj.normalize()
 		self.update(dt)
 		self.obj.rect.center = self.pos

@@ -244,7 +244,7 @@ class car(pygame.sprite.Sprite):
 		self.mask = pygame.mask.from_threshold(self.image, BLACK, BLACK)
 		
 		self.force_total = Vector2(0,0)
-		self.mass = 50
+		self.mass = 100
 
 		self.screen = screen
 
@@ -433,6 +433,7 @@ def main():
 			    	new_beam = None
 			    	new_node = None
 			    	draw = False
+		    
 		    elif event.type == pygame.MOUSEBUTTONDOWN:
 		    	if(not draw) and not START_SIM:
 			    	# Check to activate sim
@@ -471,6 +472,10 @@ def main():
 						max_force = n.force_total.magnitude()
 				for b in beam_list:
 					b.Simulate()
+					if b.nodes[0].force_total.magnitude() > 500 or b.nodes[1].force_total.magnitude() > 500:
+						b.nodes[0].vec_list.remove(b)
+						b.nodes[1].vec_list.remove(b)
+						beam_list.remove(b)
 				vehicle.simulate(beam_list,terr,dt/12000)
 		
 
