@@ -12,6 +12,8 @@ RED = [255,0,0]
 # Constants
 G = Vector2(0,2)
 START_SIM = False
+COST_PER_UNIT = 0.01
+LEVEL_COST = 1000
 
 class node(pygame.sprite.Sprite):
 	def __init__(self, x, y, canvas, group=None, fixed=False):
@@ -113,8 +115,8 @@ class beam(pygame.sprite.Sprite):
 		self.node_forces = [(0,0),(0,0)]
 
 		# Spring constant
-		self.k = 100
-		self.c = 1
+		self.k = 200
+		self.c = 5
 
 	def Simulate(self):
 		global START_SIM
@@ -309,10 +311,15 @@ class car(pygame.sprite.Sprite):
 
 def main():
 	global START_SIM
+	global COST_PER_UNIT
+	global LEVEL_COST
+	COST_EXCEEDED = False
+
 	dt = 0
 	t_total = 0
 	vis_force = 0.0
 	vis_mag = 0.0
+	cost = 0.0
 
 	screen = pygame.display.set_mode((1200,600))
 	pygame.display.set_caption("Game Demo")
@@ -367,6 +374,8 @@ def main():
 	d1 = data("", d1_rect, screen)
 	d2_rect = pygame.Rect(900,160,200,20)
 	d2 = data("", d2_rect, screen)
+	d3_rect = pygame.Rect(900,190,200,20)
+	d3 = data("", d3_rect, screen)
 
 	# Node group and initial nodes
 	node_list = pygame.sprite.Group()
@@ -430,12 +439,15 @@ def main():
 		    				beam_list.remove(new_beam)
 		    		else:
 		    			node_list.add(new_node)
+		    		cost += (new_beam.L0*COST_PER_UNIT)**4
+		    		if cost >= LEVEL_COST:
+		    			COST_EXCEEDED = True
 			    	new_beam = None
 			    	new_node = None
 			    	draw = False
 		    
 		    elif event.type == pygame.MOUSEBUTTONDOWN:
-		    	if(not draw) and not START_SIM:
+		    	if(not draw) and not START_SIM and not COST_EXCEEDED:
 			    	# Check to activate sim
 			    	if sim_rect.collidepoint((x,y)):
 			    		sim_button.activate()
@@ -460,6 +472,8 @@ def main():
 		    		
 		    		vehicle.reset(20,280)
 		    		reset_button.activate()
+		    		COST_EXCEEDED = False
+		    		cost = 0.0
 		    		break
 
 		max_force = 0.0
@@ -472,9 +486,14 @@ def main():
 						max_force = n.force_total.magnitude()
 				for b in beam_list:
 					b.Simulate()
-					if b.nodes[0].force_total.magnitude() > 500 or b.nodes[1].force_total.magnitude() > 500:
+					# Beam breaking
+					if b.nodes[0].force_total.magnitude() > 1000 or b.nodes[1].force_total.magnitude() > 1000:
 						b.nodes[0].vec_list.remove(b)
+						if not len(b.nodes[0].vec_list):
+							node_list.remove(b.nodes[0])
 						b.nodes[1].vec_list.remove(b)
+						if not len(b.nodes[1].vec_list):
+							node_list.remove(b.nodes[1])
 						beam_list.remove(b)
 				vehicle.simulate(beam_list,terr,dt/12000)
 		
@@ -495,6 +514,7 @@ def main():
 
 		d1.render(str('Max Force: {:.5}'.format(vis_force)))
 		d2.render(str('Vehicle Velocity: {:.5}'.format(vis_mag)))
+		d3.render(str('Cost: {:.5}/{:}'.format(cost,LEVEL_COST)))
 
 		# refresh the screen
 		pygame.display.update()
