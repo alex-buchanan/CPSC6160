@@ -307,7 +307,30 @@ class car(pygame.sprite.Sprite):
 		self.beam_list.clear()
 		self.update(self.pos)
 
+def game_fail(screen):
+	succ_rect = pygame.Rect(300,150,600,300)
+	smallfont = pygame.font.SysFont('Corbel',50)
+	text = "GAME OVER : LOSS!!"
+	data = smallfont.render(text , True , BLACK)
+	txt_rect_center = data.get_rect(center=(succ_rect.width/2, succ_rect.height/2))
+	img = pygame.Surface((succ_rect.width+5, succ_rect.height+5))
+	img.fill(WHITE)
+	pygame.draw.rect(img, BLACK, pygame.Rect(0,0,succ_rect.width, succ_rect.height), 2)
+	img.blit(data, txt_rect_center)
+	screen.blit(img, succ_rect)
 
+
+def game_success(screen):
+	succ_rect = pygame.Rect(300,150,600,300)
+	smallfont = pygame.font.SysFont('Corbel',50)
+	text = "GAME OVER : WON!!"
+	data = smallfont.render(text , True , BLACK)
+	txt_rect_center = data.get_rect(center=(succ_rect.width/2, succ_rect.height/2))
+	img = pygame.Surface((succ_rect.width+5, succ_rect.height+5))
+	img.fill(WHITE)
+	pygame.draw.rect(img, BLACK, pygame.Rect(2,2,succ_rect.width, succ_rect.height), 2)
+	img.blit(data, txt_rect_center)
+	screen.blit(img, succ_rect)
 
 def main():
 	global START_SIM
@@ -507,14 +530,22 @@ def main():
 		t_total += dt
 
 		# only update once every 1/2 second
-		if t_total > 500:
-			t_total = 0
+		if t_total % 500 < 20:
 			vis_force = max_force
 			vis_mag = vehicle.vel.magnitude()
 
 		d1.render(str('Max Force: {:.5}'.format(vis_force)))
 		d2.render(str('Vehicle Velocity: {:.5}'.format(vis_mag)))
 		d3.render(str('Cost: {:.5}/{:}'.format(cost,LEVEL_COST)))
+
+		if vehicle.rect.midright[0] > 1200:
+			game_success(screen)
+			START_SIM = False
+			run = False
+		if t_total > 30000:
+			game_fail(screen)
+			START_SIM = False
+			run = False
 
 		# refresh the screen
 		pygame.display.update()
@@ -523,4 +554,5 @@ def main():
 if __name__ == '__main__':
     pygame.init()
     main()
+    pygame.time.wait(5000)
     pygame.quit()
